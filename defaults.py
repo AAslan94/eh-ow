@@ -5,7 +5,7 @@ Created on Thu Dec 23 08:36:57 2021
 
 @author: thkam
 """
-
+#testing
 import numpy as np
 
 def normalize_dist(l, S):
