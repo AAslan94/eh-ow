@@ -38,7 +38,8 @@ designs = {
     'PT_sensor' : 25e-3,
     'PT_master' : 6,
     'A_master' : 1e-4,
-    'A_sensor' : 1e-4
+    'A_sensor' : 1e-4,
+    'pv': True
     },
   'Β1' :  {
     'room_L' : 7.5,

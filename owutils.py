@@ -345,7 +345,7 @@ def distances(rS, rR):
         + (rSz2 - rRz2) ** 2.0 )
     
     
-def lambertian_gains(rS, nS, rR, nR, mS, AR, FOV, SOLAR,calc_delays = False):
+def lambertian_gains(rS, nS, rR, nR, mS, AR, FOV, pv,calc_delays = False):
     """
     Calculate the channel DC gain
     """
@@ -423,7 +423,7 @@ def lambertian_gains(rS, nS, rR, nR, mS, AR, FOV, SOLAR,calc_delays = False):
     #print("+++")
     #print(rect_theta)
     #print("---")
-    if SOLAR:
+    if pv:
         #effect of angle of arrival 
         p_p = np.array([-1.81907071e-09,  3.00750020e-07, -1.82841164e-05,  4.57546496e-04,
                         -4.11754977e-03,  1.00666212e+00])

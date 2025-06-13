@@ -26,9 +26,6 @@ plt.rcParams.update({
 
 
 params_d = designs['A']  
-l = sensor_net(**params_d) 
-l.calch()
-l.light_sim()
 x = sensor_net(**params_d) 
 x.calch()
 x.light_sim()

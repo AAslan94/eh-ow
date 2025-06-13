@@ -1,9 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import time
 import pickle
 import owutils as ut
-import multiprocessing as mp
 from defaults import constants, defaults
 import fnmatch
 import matplotlib.tri as tri
@@ -160,7 +158,7 @@ class txrx_pairings:
         nR = argv.pop('nR')
         FOV = argv.pop('FOV')
         PT = argv.pop('PT', None)
-                
+        pv = argv.pop('pv',False)
         if rS.ndim == 1:
             self.nel_tx = 1
             
@@ -173,7 +171,7 @@ class txrx_pairings:
         else:
             self.nel_rx, _ = rR.shape
             
-            
+        self.pv = pv     
         self.rS = ut.array_if_single_vector(rS, self.nel_tx)
         self.nS = ut.array_if_single_vector(nS, self.nel_tx)
         self.m = ut.vectorize_if_scalar(m, self.nel_tx)
@@ -187,7 +185,7 @@ class txrx_pairings:
         
     def calc_h(self):
         self.h, self.d = ut.lambertian_gains(self.rS, self.nS, self.rR, 
-                                          self.nR, self.m, self.A, self.FOV,
+                                          self.nR, self.m, self.A, self.FOV,self.pv,
                                           calc_delays = True)
         return self.h
         
@@ -306,6 +304,7 @@ class txrx_elements:
             self.nel, _ = r.shape
 
        FOV = kwargs.pop('FOV', np.pi/2.0)
+       pv = kwargs.pop('pv', False)
  
        self.rS = ut.array_if_single_vector(r, self.nel)
        self.rR = self.rS
@@ -317,6 +316,7 @@ class txrx_elements:
        self.FOV = ut.vectorize_if_scalar(FOV, self.nel)       
        self.PT = ut.vectorize_if_scalar(PT, self.nel)
        self.Pin_tot = np.zeros([1,self.nel]) 
+       self.pv = pv
        
     def set_PT(self, PT):
         self.PT = PT
@@ -333,7 +333,8 @@ class txrx_elements:
                 rR = self.rR,
                 nR = self.nR,
                 A = self.A,
-                FOV = self.FOV
+                FOV = self.FOV,
+                pv = self.pv
                 )
 
         txrx.calc_h()
@@ -538,201 +539,6 @@ class cycle:
     def no_dev(self):
         return self.Tcycle / (self.Tcycle - self.tSL)
        
-class group_of_rays:
-    """
-    Group of rays class
-    """
-    def __init__(self, nrays = 100,
-                       nS = -constants.ez,
-                       rS = None,
-                       m = 1,
-                       surfs = None):
-        
-        self.i = np.arange(nrays, dtype = int)
-        self.nrays = nrays
-               
-        self.nt = int ( np.floor(rS.size) / 3.0 )
-        self.rS = ut.expand_to(rS, self.nt)
-        self.nS = ut.expand_to(nS, self.nt)
-        self.it = np.mod(self.i, self.nt, dtype = int)
-        
-        self.r0 = self.rS[ self.it ]
-        self.n0 = self.nS[ self.it ]
-        self.m = m
-        
-        self.trajectories = []
-        
-        self.r = np.copy(self.r0)
-        
-        self.n = ut.random_directions_mul(self.n0, self.nrays, self.m)
-        
-        self.t = np.zeros( nrays )
-        self.P = np.ones( nrays )
-        
-        self.b = 0
-        self.surfs = surfs
-        self.now_on = -np.ones( nrays )
-        self.append_to_traj()
-        self.nrays_t = int( np.floor( self.nrays / self.nt ) )
-        
-    def append_to_traj(self):
-    
-        self.trajectories.append({'r' : np.copy(self.r),
-                                  'n' : np.copy(self.n),
-                                  't' : np.copy(self.t),
-                                  'bounce' : self.b,
-                                  'P' : np.copy(self.P),
-                                  'now_on' : np.copy(self.now_on),
-                                  'n0' : np.copy(self.n0)})
-            
-    def plane_inter(self, ps):
-        """
-        Intersection points of the rays with a plane         
-        """   
-        c1 = -ut.dot_2D1D( ut.rel_2D(self.r, ps.r0), ps.n )        
-        c2 = ut.dot_2D1D( self.n, ps.n )         
-        
-        
-        i12 = np.where( (c1 == 0) & (c2 == 0) )
-        i1 = np.where( (c1 == 0) & (c2 != 0) )
-        i = np.where( (c1 != 0) & (c2 != 0) )
-        i = i[0]
-        r_int = np.zeros( self.r.shape )
-        
-        r_int[i12, :] = np.inf
-        r_int[i1, :] = np.nan
-        
-        r_int[i] = self.r[i] + ut.mul_2Dsc( self.n[i], c1[i] / c2[i])
-        
-        dot_r = ut.dot_2D(r_int - self.r, self.n)
-        
-        ineg = np.where( dot_r <= 0 )
-        r_int[ineg] = np.nan
-        
-        return r_int, dot_r
-        
-        
-    def ps_inter(self, ps):
-        """
-        Intersection points of the rays with a plane surface
-        """   
-        
-        r_int, dot_r = self.plane_inter(ps)
-        
-        ipos = np.where( dot_r > 0 )            
-        r_can = r_int[ipos]
-        
-        dot_dr1 = ut.dot_2D1D( ut.rel_2D( r_can, ps.r0), ut.normalize_to_unity(ps.dr1) )
-        dot_dr2 = ut.dot_2D1D( ut.rel_2D( r_can, ps.r0), ut.normalize_to_unity(ps.dr2) )
-
-        ind_outside = np.where( (dot_dr1 < 0) | (dot_dr1 > ps.abs_dr1) |
-                                (dot_dr2 < 0) | (dot_dr2 > ps.abs_dr2) )
-
-        r_can[ind_outside] = np.nan
-        r_int[ipos] = r_can  
-    
-        return r_int
-    
-    def bounce(self):
-        already_bounced = []
-        
-        """
-        Find bouncing points
-        """
-  
-        for i, ps in enumerate(self.surfs):
-            
-            r_int = self.ps_inter(ps)            
-            i_int = np.where( ~np.isnan(r_int).all(axis = 1) )[0].tolist()
-            
-            in_c = []
-            
-            for indx in i_int:
-                """
-                A ray that still has to reach a surface 
-                is to be moved if it intersects with a surface if
-                different to the one it is currently on
-                """
-                if (not indx in already_bounced) and (self.now_on[ indx ] != i):
-                    already_bounced.append(indx)
-                    in_c.append(indx)
-                    
-            # generate new directions for the rays already bounced
-            n = ut.random_directions( ps.n, len(in_c), ps.m )
-            
-            # change position and orientation of these rays
-            
-            d = np.linalg.norm(self.r[in_c] - r_int[ in_c ], axis = 1)
-            
-            self.r[ in_c ] = r_int[ in_c ]
-            self.n[ in_c ] = n
-            self.now_on[ in_c ] = i
-            self.P[ in_c ] = ps.refl * self.P[ in_c ]
-            self.t[ in_c ] += d / constants.c0
-            self.n0[ in_c ] = ps.n
-        self.b += 1
-        self.append_to_traj()
-        
-    def show_trajectories(self, i, ax = None):
-        """
-        Show the trajectories of the rays
-        """
-        if ax is None:
-            fig = plt.figure()
-            ax = fig.add_subplot(111, projection = '3d')           
-        
-        rstart = None
-
-        for el in self.trajectories:
-            rend = el['r'][i]
-            n = el['n'][i]
-            if rstart is not None:
-                x = np.array([rstart[0], rend[0]])
-                y = np.array([rstart[1], rend[1]])
-                z = np.array([rstart[2], rend[2]])
-                ax.plot(x,y,z,'--go')
-                
-            else:
-                x = np.array([rend[0]])
-                y = np.array([rend[1]])
-                z = np.array([rend[2]])
-                ax.plot(x,y,z,'go')
-
-            ax.quiver(x[-1], y[-1], z[-1] ,
-                      n[0], n[1], n[2])                
-            rstart = [x[-1], y[-1], z[-1] ]
-            
-        return ax
-    
-    def calc_los(self, rR, nR, AR, FOV):
-        """
-        Calculate line-of-sight components from the rays 
-        to the receivers described by rR, nR, AR and FOV
-        """
-        P = txrx_pairings(
-            rS = self.r,
-            nS = self.n0,
-            PT = self.P,
-            m = self.m,
-            A = AR,
-            FOV = FOV,
-            rR = rR,
-            nR = nR)
-        P.calc_h()
-        P.calc_Pin() 
-       
-        nr = int( np.floor( rR.size / 3 ) )        
-        Pin_raw = np.transpose(P.Pin)
-        ft_raw = np.tile( np.transpose(self.t), (nr, 1) ) + np.transpose(P.d)  
-
-        Pin = np.zeros( [self.nt, nr, self.nrays_t] )
-        ft = np.zeros( [self.nt, nr, self.nrays_t] )
-        
-        for i in range(self.nt):
-            Pin[i, :, :] = Pin_raw[:, slice(i, self.nrays, self.nt) ]
-            ft[i, :, :] = ft_raw[:, slice(i, self.nrays, self.nt) ]
-        
-        return Pin, ft, Pin_raw, ft_raw
 
 class diffuse_sim:
 
@@ -845,176 +651,7 @@ class diffuse_sim:
         with open(file_name, 'wb') as f:
             pickle.dump( self.to_dict(), f)
                 
-class multipath_sim:
-    """
-    Multipath simulation class
-    """
-    def __init__(self, nrays = 100,
-                       surfaces = None,
-                       bounces = 3,
-                       FOV = np.pi/2.0,
-                       nS = -constants.ez,
-                       rS = None,
-                       nR = constants.ez,
-                       rR = None,
-                       m = 1,
-                       A = 1e-4,
-                       t = None):
-        
-        self.nrays = nrays
-        self.surfaces = surfaces
-        self.bounces = bounces
-        self.FOV = FOV
-        self.nR = nR
-        self.nS = nS
-        self.rR = rR        
-        self.rS = rS
-        self.A = A
-        self.m = m
-        self.t = t
-        
-        self.Nt = int( np.floor( rS.size / 3 ) )
-        self.Nr = int( np.floor( rR.size / 3 ) )
-        
-        self.rS = ut.expand_to(rS, self.Nt)
-        self.nS = ut.expand_to(nS, self.Nt)        
-        self.rR = ut.expand_to(rR, self.Nr)
-        self.nR = ut.expand_to(nR, self.Nr)
-        
-        self.h = np.zeros([self.Nt, self.Nr, self.t.size - 1])                  # received power with respect to t
-        self.hb = np.zeros([self.Nt, self.Nr, self.bounces + 1, self.t.size - 1])   # received power per bounce with respect to t
-        self.P = np.zeros([self.Nt, self.Nr])                                   # total power
-        self.Pb = np.zeros([self.Nt, self.Nr, self.bounces + 1])                    # total power per bounce
-        self.rays_g = 0                                                         # Generated rays so far
-        self.timings = {}
-        
-    def time(func):
-        def wrapper(self):            
-            self.tstart = time.time()
-            res = func(self)
-            self.tend = time.time()
-            self.telapsed = self.tend - self.tstart
-            print('Execution lasted %f s' %self.telapsed)
-            fun_name = func.__name__
-            
-            if fun_name not in self.timings:
-                self.timings[fun_name] = 0.0
-            self.timings[fun_name] += self.telapsed
-            return res
-        return wrapper           
-    
-    
-    def init_rays(self):
-        """
-        Initialize the rays to be used in the current execution
-        """
-        self.rays = group_of_rays(nrays = self.nrays,
-                                  surfs = self.surfaces,
-                                  rS = self.rS,
-                                  nS = self.nS,
-                                  m = self.m)
-        self.rays_g += self.nrays
-        
-    @time
-    def single_bounce(self):
-        self.rays.bounce()
-    
-    @time    
-    def calc_los(self):
-        self.Pin, self.ft, _, _ = self.rays.calc_los( self.rR, self.nR, self.A, self.FOV)
 
-    @time
-    def update_hists(self):
-        for i in range(self.Nt):
-            for j in range(self.Nr):
-                h, _ = np.histogram(self.ft[i, j, :], bins = self.t, weights = self.Pin[i, j, :])
-                self.hb[i, j, self.rays.b, :] += h
-                self.h[i, j, :] += h
-                
-                P = np.sum(h)
-                self.Pb[ i, j, self.rays.b ] += P
-                self.P[ i, j ] += P                                
-        
-    def get_jr(self, closest_to):
-        return np.argmin( np.linalg.norm(self.rR - closest_to, axis = 1) )
-   
-    def calc_norm(self):
-        self.hn = self.h / (self.rays_g / self.Nt)
-        self.hbn = self.hb / (self.rays_g / self.Nt)
-        self.Pn = self.P / (self.rays_g / self.Nt)
-        self.Pbn = self.Pb / (self.rays_g / self.Nt)
-                
-    def simulate(self):
-        print('Generating rays and trajectories')
-        self.init_rays()
-        print('Performing LOS calculations')
-        self.calc_los()
-        print('Updating histograms')
-        self.update_hists()        
-        
-        for i in range(self.bounces):
-            print('Starting bounce %d / %d' %(i, self.bounces) )
-            self.single_bounce()
-            print('Performing LOS calculations ' )
-            self.calc_los()
-            print('Updating histograms')
-            self.update_hists()
-        
-        self.calc_norm()
-    
-    def show_h(self, it, ir, bounce = None, fig = None):
-        """
-        Show the impulse response obtained for the transceiver set (it, ir)
-        """
-        if fig is None:
-            fig = plt.figure()        
-        
-        plt.figure(fig)
-        plt.xlabel('Time [ns]')
-        plt.ylabel('Impulse response')
-        title = 'rS = %s\n rR = %s' %(np.array2string(self.rS[it], separator = ','),                                                      
-                                      np.array2string(self.rR[ir], separator = ',') )
-        plt.title(title)
-        t = self.t
-        
-        if bounce is None:
-            plt.plot(t[:-1]/1e-9, self.hn[it, ir, :])
-            return fig
-        
-        elif bounce == 'all':
-            ib = range( self.bounces + 1 )
-        
-        else:
-            ib = bounce
-            
-        for ic in ib:
-            plt.plot(t[:-1]/ 1e-9, self.hbn[it, ir, ic, :], label = 'bounce: %s' %ic )
-            
-        plt.legend()
-        return fig
-            
-    def to_dict(self):
-        return {'h' : self.hn,
-                'hbn' : self.hbn,
-                'Pn' : self.Pn,
-                'Pbn' : self.Pbn,
-                'rS' : self.rS,
-                'nS' : self.nS,
-                'rR' : self.rR,
-                'nR' : self.nR,
-                'Nt' : self.Nt,
-                'Nr' : self.Nr,
-                't' : self.t,
-                'rays_g' : self.rays_g,
-                'timings' : self.timings,
-                'FOV' : self.FOV,
-                'A' : self.A,
-                'bounces' : self.bounces,
-                'm' : self.m}
-        
-    def save(self, file_name):
-        with open(file_name, 'wb') as f:
-            pickle.dump( vars(self), f)
 
 class sensor_net:
 
@@ -1023,8 +660,8 @@ class sensor_net:
                    'A_master', 'A_sensor', 'm_master', 'm_sensor',
                    'RF_master', 'RF_sensor', 'CF_master', 'CF_sensor',
                    'sp_eff_master', 'sp_eff_sensor', 'FOV_master', 'FOV_sensor',
-                   'pd_peak', 'ST_m', 'SR_m', 'ST_s', 'SR_s',
-                   'ST_a', 'FOV_master', 'FOV_sensor', 'l', 'R_s', 'R_m',
+                   'pd_peak', 'ST_m', 'SR_m', 'ST_s', 'SR_s', 'SR_s1',
+                   'ST_a', 'FOV_master', 'FOV_sensor', 'l', 'R_s', 'R_m', 'R_s1',
                    'refl_floor', 'refl_ceiling', 'refl_east', 'refl_west',
                    'refl_south', 'refl_north', 'room_N', 'room_L', 'room_W', 'room_H',
                    'amb_pos', 'amb_H', 'amb_L1', 'amb_L2', 'ptd_a', 'amb_name',
@@ -1035,7 +672,7 @@ class sensor_net:
                    'IWU', 'tWU', 'IRO', 'tRO', 'IRX', 'bits_sensor',  'bits_master', 
                    'ID_sensor', 'Tcycle', 'ISL', 'QmAh',
                    'BER_target', 'md_pol', 'md_poli', 'sd_pol', 'sd_poli',
-                   'Imax_s', 'Imin_s', 'Imax_m', 'Imin_m' ]
+                   'Imax_s', 'Imin_s', 'Imax_m', 'Imin_m','pv']
 
     MUST_VECTORIZE = {
         'PT_master' : 'no_masters',
@@ -1207,16 +844,22 @@ class sensor_net:
         """
         Calculate spectral matchings
         """        
-        self.cel_sm = np.trapz( self.ST_m * self.SR_s * self.R_s, self.l )
+        #self.cel_sm = np.trapz( self.ST_m * self.SR_s * self.R_s, self.l )
         self.cel_ms = np.trapz( self.ST_s * self.SR_m * self.R_m, self.l )
-        self.cel_sa = np.trapz( self.ST_a * self.SR_s * self.R_s, self.l )
+        #self.cel_sa = np.trapz( self.ST_a * self.SR_s * self.R_s, self.l )
         self.cel_ma = np.trapz( self.ST_a * self.SR_m * self.R_m, self.l )
+        if self.pv == False:
+            self.cel_sm = np.trapz( self.ST_m * self.SR_s * self.R_s, self.l )
+            self.cel_sa = np.trapz( self.ST_a * self.SR_s * self.R_s, self.l )
+        else:
+            self.cel_sm = np.trapz( self.ST_m * self.SR_s1 * self.R_s1, self.l )
+            self.cel_sa = 1 #spectrum is already considered in data sheet values.
     
     def plot_spectra(self):
         """
         Plot all spectra involved
         """
-        plt.figure()
+        plt.figure(10,6)
         l = self.l
         plt.plot(l, self.ST_m / np.max( self.ST_m ), 'b', label = '$S_\mathrm{T}$ - master')
         plt.plot(l, self.SR_m / np.max( self.SR_m ), 'r', label = '$S_\mathrm{R}$ - master')
@@ -1225,7 +868,12 @@ class sensor_net:
         plt.plot(l, self.SR_s / np.max( self.SR_s ), 'r--', label = '$S_\mathrm{R}$ - sensor')
         plt.plot(l, self.R_s / np.max( self.R_s ), 'k--', label = '$\mathcal{R}$ - sensor')
         plt.plot(l, self.ST_a / np.max( self.ST_a ), 'g--', label = '$S_\mathrm{T}$ - ambient')
-        plt.legend()
+        plt.plot(l, self.R_s1/ np.max(self.R_s1), linestyle='--', marker='X', label='$S_\mathrm{pv}$ - MC Solar Cell')
+        plt.legend(loc='upper right') 
+        plt.xlabel("Wavelength [m]")
+        plt.ylabel("Normalized Responsivity/Spectrum Power Distribution")
+        plt.show()
+ 
           
     def set_elements(self):
         """
@@ -1248,7 +896,8 @@ class sensor_net:
                 A = self.A_sensor,
                 m = self.m_sensor,
                 FOV = self.FOV_sensor,
-                PT = self.PT_sensor
+                PT = self.PT_sensor,
+                pv = self.pv                
                 )
         
         self.w_els = txrx_elements(
@@ -1420,7 +1069,7 @@ class sensor_net:
         PT_w = self.w_els.PT.reshape([self.n_w, 1])        
         self.Pin_sw = np.sum(self.h_sw * PT_w, axis = 0)           
     
-    def calc_noise(self):
+    def calc_noise(self, s = 0, m = 0):
         self.n_m = np.zeros( [self.no_masters, self.no_sensors] )
         self.n_s = np.zeros( [self.no_masters, self.no_sensors] )
         
@@ -1430,7 +1079,8 @@ class sensor_net:
                 self.n_m[i , j] += 2 * constants.qe * self.B_sensor[j] * self.i_ma[i]
                 self.n_s[i , j] = self.tia_s.calc_noise_power( self.B_master[i] )
                 self.n_s[i , j] += 2 * constants.qe * self.B_master[i] * self.i_sa[j]
-        
+        self.n_s += s
+        self.n_m += m
         self.snr_m = np.zeros( [self.no_masters, self.no_sensors] )
         self.snr_s = np.zeros( [self.no_masters, self.no_sensors] )
         
@@ -1509,14 +1159,14 @@ class sensor_net:
         self.i_ms_tot = self.cel_ms * self.Pin_ms_tot
         self.i_sm_tot = self.cel_sm * self.Pin_sm_tot
         
-        self.hi_ms_los = self.i_ms_los / self.PT_sensor
-        self.hi_sm_los = self.i_sm_los / self.PT_master
+        self.hi_ms_los = self.i_ms_los / self.PT_sensor[:, np.newaxis]
+        self.hi_sm_los = self.i_sm_los / self.PT_master[:, np.newaxis]
 
-        self.hi_ms_diff = self.i_ms_diff / self.PT_sensor
-        self.hi_sm_diff = self.i_sm_diff / self.PT_master
+        self.hi_ms_diff = self.i_ms_diff / self.PT_sensor[:, np.newaxis]
+        self.hi_sm_diff = self.i_sm_diff / self.PT_master[:, np.newaxis]
         
-        self.hi_ms_tot = self.i_ms_tot / self.PT_sensor
-        self.hi_sm_tot = self.i_sm_tot / self.PT_master
+        self.hi_ms_tot = self.i_ms_tot / self.PT_sensor[:, np.newaxis]
+        self.hi_sm_tot = self.i_sm_tot / self.PT_master[:, np.newaxis]
         
     def calc_rq(self):
         self.g0 = ut.Qinv( self.BER_target )

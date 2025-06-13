@@ -66,6 +66,18 @@ def blackbodymax(T):
     lmax = constants.bK / T
     Pmax = blackbody(lmax,T)
     return lmax, Pmax           
+    
+def solar_panel_sensitivity(l):
+    l = np.array(l)
+    p = np.array([ 1.93560637e-19, -9.73820312e-16,  2.10084127e-12, -2.54248027e-09,
+        1.87161498e-06, -8.36672314e-04,  2.09865970e-01, -2.23859808e+01])
+    l = l / 1e-9
+    lmin = 330
+    lmax = 1190
+    s = np.zeros(l.shape)
+    i = np.where( (l >= lmin) & (l <= lmax))
+    s[i] = np.polyval(p, l[i])
+    return s 
 
 def sunirradiance(pmax, l, T):
     lmax , Pmax = blackbodymax(T)
@@ -170,6 +182,7 @@ class defaults:
     Imax_s = 100e-3
     Imin_m = 0e-3
     Imin_s = 0e-3
+    pv = False
     
     
     def __init__(self):
@@ -192,6 +205,8 @@ class defaults:
                                    0.0 ]])
 
         self.ST_m = WHITE_LED_SPECTRUM( self.l )
+        self.SR_s1 = ALL_PASS(self.l)
+        self.R_s1 = solar_panel_sensitivity(self.l)
         self.ST_s = TSFF5210_SPECTRUM( self.l )
         self.SR_m = VLC_DROP_FILTER( self.l )
         self.SR_s = INFRARED_DROP_FILTER( self.l )
