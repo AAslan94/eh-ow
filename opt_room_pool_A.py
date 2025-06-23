@@ -8,12 +8,9 @@ Created on Thu Dec 23 11:44:26 2021
 import numpy as np
 from libow8 import sensor_net
 import matplotlib.pyplot as plt
-import pickle
-import mixed_ga as ga
 import owutils as ut
 from designs import designs
-from multiprocessing import Pool
-from time import sleep
+from nrg_harvesting import *
 
 N_CPUS = 4
 plt.rcParams.update({
@@ -24,11 +21,12 @@ plt.rcParams.update({
     "lines.linewidth" : 2,
 })
 
-
+ehx = EH()
 params_d = designs['A']  
 x = sensor_net(**params_d) 
 x.calch()
 x.light_sim()
-x.calc_noise()
+x.calc_noise(np.sum(ehx.l.i_sm_tot))
 x.calc_rq() 
+
 
