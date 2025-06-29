@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Thu Dec 23 11:44:26 2021
 
-@author: thkam
-"""
+
 import numpy as np
 from libow8 import sensor_net
 import matplotlib.pyplot as plt
@@ -26,7 +23,7 @@ params_d = designs['A']
 x = sensor_net(**params_d) 
 x.calch()
 x.light_sim()
-x.calc_noise(np.sum(ehx.l.i_sm_tot))
+x.calc_noise(np.sum(ehx.l.i_sm_tot)) #need to include thermal noise
 x.calc_rq() 
 
 
