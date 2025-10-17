@@ -429,6 +429,7 @@ def lambertian_gains(rS, nS, rR, nR, mS, AR, FOV, pv,calc_delays = False):
                         -4.11754977e-03,  1.00666212e+00])
         p_s =  np.poly1d(p_p)
         theta = np.rad2deg(np.arccos(cos_theta))
+        theta[theta>90] = 181
         a = p_s(theta)
         j = np.where(a<0)
         a[j] = 0 #if a<0 and cos<0 then h>0 and spooky results

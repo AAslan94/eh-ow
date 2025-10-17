@@ -7,6 +7,16 @@ import fnmatch
 import matplotlib.tri as tri
 
 D = defaults()
+
+N_CPUS = 4
+plt.rcParams.update({
+    "text.usetex": True,
+    "font.family": "serif",
+    "font.serif": ["Palatino"],
+    "font.size" : 22,
+    "lines.linewidth" : 2,
+})
+
    
 class grid_of_points:
     
@@ -448,21 +458,22 @@ class driver:
     
 class cycle:
 
-    def __init__(self, IWU = 1.3e-3,
+    def __init__(self, IWU = 1.0e-3,
                        tWU = 20e-3,
-                       IRO = 1.3e-3,
+                       IRO = 4.6e-3,
                        tRO = 40e-3,
-                       IRX = 1.3e-3,
-                       Ldatau = 200,
-                       Ldatad = 200,
+                       IRX = 1.6e-3,
+                       Ldatau = 300,
+                       Ldatad = 100,
                        Rbu = 1e3,
                        Rbd = 1e3,
                        ID = 10e-3,
                        Tcycle = 1,
-                       ISL = 400e-9,
+                       ISL = 1e-6,
                        QmAh = 620,
                        ID_max = 100.0e-3,
-                       ID_min = 0.0):
+                       ID_min = 0.0,
+                       livewire = None):
         
         self.ID = ID
         self.IWU = IWU
@@ -473,10 +484,14 @@ class cycle:
         self.Ldatad = Ldatad
         self.Rbu = Rbu
         self.Rbd = Rbd
-        self.tTX = Ldatau / Rbu
+        self.tTX = Ldatau /(0.8*Rbu)
         self.IRX = IRX
-        self.ITX = self.ID * 0.5 + self.IWU
-        self.tRX = Ldatad / Rbd
+        self.ITX = self.ID * 0.5 + self.IWU + 0.3e-3 
+        if livewire is None: 
+            self.tRX = Ldatad / Rbd
+        else:
+            self.tRX = Ldatad/livewire
+        
         self.Tcycle = Tcycle
         self.tSL = Tcycle - tWU - tRO - self.tTX - self.tRX
         self.ISL = ISL
@@ -856,23 +871,32 @@ class sensor_net:
             self.cel_sa = 1 #spectrum is already considered in data sheet values.
     
     def plot_spectra(self):
-        """
-        Plot all spectra involved
-        """
-        plt.figure(10,6)
+        colors = {
+            'vlc': '#1f77b4',   # Blue
+            'ir':  '#ff7f0e',   # Orange
+            'pv':  '#2ca02c',   # Green
+            'pd':  '#d62728',   # Red
+            'f':   '#9467bd',   # Purple
+            'a':   '#8c564b'    # Brown
+            }
+
+        plt.figure(figsize=(10, 8))
         l = self.l
-        plt.plot(l, self.ST_m / np.max( self.ST_m ), 'b', label = '$S_\mathrm{T}$ - master')
-        plt.plot(l, self.SR_m / np.max( self.SR_m ), 'r', label = '$S_\mathrm{R}$ - master')
-        plt.plot(l, self.R_m / np.max( self.R_m ), 'k', label = '$\mathcal{R}$ - master')
-        plt.plot(l, self.ST_s / np.max( self.ST_s ), 'b--', label = '$S_\mathrm{T}$ - sensor')
-        plt.plot(l, self.SR_s / np.max( self.SR_s ), 'r--', label = '$S_\mathrm{R}$ - sensor')
-        plt.plot(l, self.R_s / np.max( self.R_s ), 'k--', label = '$\mathcal{R}$ - sensor')
-        plt.plot(l, self.ST_a / np.max( self.ST_a ), 'g--', label = '$S_\mathrm{T}$ - ambient')
-        plt.plot(l, self.R_s1/ np.max(self.R_s1), linestyle='--', marker='X', label='$S_\mathrm{pv}$ - MC Solar Cell')
+
+        plt.plot(l, self.ST_m / np.max(self.ST_m), color=colors['vlc'], label='$S_\\mathrm{VLC}$')
+        plt.plot(l, self.ST_s / np.max(self.ST_s), linestyle='--', color=colors['ir'], label='$S_\\mathrm{IR}$')
+        plt.plot(l[self.R_s1>0], self.R_s1[self.R_s1>0] / np.max(self.R_s1), linestyle='--',  color=colors['pv'], label='$S_\\mathrm{PV}$')    
+        plt.plot(l, self.R_m / np.max(self.R_m), color=colors['pd'], label='$\\mathcal{S}_\\mathrm{PD}$')
+        plt.plot(l, self.SR_m / np.max(self.SR_m), color=colors['f'], label='$S_\\mathrm{F}$')
+        plt.plot(l, self.ST_a / np.max(self.ST_a), linestyle='--', color=colors['a'], label='$S_\\mathrm{A}$')
+
         plt.legend(loc='upper right') 
-        plt.xlabel("Wavelength [m]")
-        plt.ylabel("Normalized Responsivity/Spectrum Power Distribution")
+        plt.xlabel("$\\lambda$ [m]")
+        plt.ylabel("Normalized Responsivity / Spectrum Power Distribution")
+        plt.tight_layout()  
+        plt.savefig("spectra.pdf", format='pdf')
         plt.show()
+
  
           
     def set_elements(self):
@@ -896,7 +920,7 @@ class sensor_net:
                 A = self.A_sensor,
                 m = self.m_sensor,
                 FOV = self.FOV_sensor,
-                PT = self.PT_sensor,
+                PT = self.PT_sensor[0],
                 pv = self.pv                
                 )
         
@@ -946,7 +970,8 @@ class sensor_net:
             pol = self.sd_pol,
             polinv = self.sd_poli
         )
-    def calc_tbattery(self, ID = None):
+    def calc_tbattery(self, ID = None, br = None):
+        #print("br is " + str(br))
         if ID is None:
             ID = np.squeeze(self.ID_rq_s_tot)
             
@@ -954,6 +979,9 @@ class sensor_net:
         self.tb_los = np.zeros( [self.no_masters, self.no_sensors] )
         self.tb_diff = np.zeros( [self.no_masters, self.no_sensors] )
         self.tb_tot = np.zeros( [self.no_masters, self.no_sensors] )
+        
+        #livewire for solar panels BW - downlink bitrate
+        
         
         for i in range(self.no_masters):
             for j in range(self.no_sensors):
@@ -971,12 +999,14 @@ class sensor_net:
                           ISL = self.ISL[j],
                           QmAh = self.QmAh[j],
                           ID_max = self.Imax_s,
-                          ID_min = self.Imin_s
+                          ID_min = self.Imin_s,
+                          livewire = br[j]
                           )
-                
+                                
                 self.tb_los[i, j] = c.battery_life_ID(ID = self.ID_rq_s_los[i, j] )
                 self.tb_diff[i, j] = c.battery_life_ID(ID = self.ID_rq_s_diff[i, j] )
                 self.tb_tot[i, j] = c.battery_life_ID(ID = self.ID_rq_s_tot[i, j] )
+                self.cycles.append(c)
                 
     def calch_n_to_n(self):
         """
@@ -1079,7 +1109,7 @@ class sensor_net:
                 self.n_m[i , j] += 2 * constants.qe * self.B_sensor[j] * self.i_ma[i]
                 self.n_s[i , j] = self.tia_s.calc_noise_power( self.B_master[i] )
                 self.n_s[i , j] += 2 * constants.qe * self.B_master[i] * self.i_sa[j]
-        self.n_s += s
+        self.n_s += s * 2 * constants.qe * self.B_master[0] 
         self.n_m += m
         self.snr_m = np.zeros( [self.no_masters, self.no_sensors] )
         self.snr_s = np.zeros( [self.no_masters, self.no_sensors] )
@@ -1105,6 +1135,11 @@ class sensor_net:
         self.snr_s_tot_dB = 10 * np.log10(self.snr_s_tot)
         self.snr_m_diff_dB = 10 * np.log10(self.snr_m_diff)
         self.snr_s_diff_dB = 10 * np.log10(self.snr_s_diff)
+        
+        self.ber_downlink = ut.Qfunction(self.g_s_tot)
+        self.ber_uplink = ut.Qfunction(self.g_m_tot)
+        self.ber_downlink_diff = ut.Qfunction(self.g_s_diff)
+        self.ber_uplink_diff = ut.Qfunction(self.g_m_diff)
         
     def light_sim(self, output = False):
         """
@@ -1159,13 +1194,13 @@ class sensor_net:
         self.i_ms_tot = self.cel_ms * self.Pin_ms_tot
         self.i_sm_tot = self.cel_sm * self.Pin_sm_tot
         
-        self.hi_ms_los = self.i_ms_los / self.PT_sensor[:, np.newaxis]
+        self.hi_ms_los = self.i_ms_los / self.s_els.PT
         self.hi_sm_los = self.i_sm_los / self.PT_master[:, np.newaxis]
 
-        self.hi_ms_diff = self.i_ms_diff / self.PT_sensor[:, np.newaxis]
+        self.hi_ms_diff = self.i_ms_diff / self.s_els.PT
         self.hi_sm_diff = self.i_sm_diff / self.PT_master[:, np.newaxis]
         
-        self.hi_ms_tot = self.i_ms_tot / self.PT_sensor[:, np.newaxis]
+        self.hi_ms_tot = self.i_ms_tot / self.s_els.PT
         self.hi_sm_tot = self.i_sm_tot / self.PT_master[:, np.newaxis]
         
     def calc_rq(self):

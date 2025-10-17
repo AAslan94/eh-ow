@@ -57,7 +57,7 @@ def RESPONSIVITY(l):
 
     
 def blackbody(l , T):
-    P = 2.0**constants.hP**2 *constants.c0 ** 2.0 / l**5/(
+    P = 1.5**constants.hP**2 *constants.c0 ** 2.0 / l**5/(
             np.exp( constants.hP * constants.c0 / l / constants.kB / T) - 1.0)
     return P 
 
@@ -68,15 +68,14 @@ def blackbodymax(T):
     return lmax, Pmax           
     
 def solar_panel_sensitivity(l):
-    l = np.array(l)
-    p = np.array([ 1.93560637e-19, -9.73820312e-16,  2.10084127e-12, -2.54248027e-09,
-        1.87161498e-06, -8.36672314e-04,  2.09865970e-01, -2.23859808e+01])
+    p = np.array([  26.78555644, -160.24353775,  381.86564712, -463.07816469,
+        300.12488471,  -97.25192023,   12.34949208])
     l = l / 1e-9
-    lmin = 330
-    lmax = 1190
+    lmin = 300
+    lmax = 1175
     s = np.zeros(l.shape)
     i = np.where( (l >= lmin) & (l <= lmax))
-    s[i] = np.polyval(p, l[i])
+    s[i] = np.polyval(p, 2*l[i]/(lmin + lmax) )
     return s 
 
 def sunirradiance(pmax, l, T):
@@ -166,18 +165,18 @@ class defaults:
     no_bounces = 4
     Rb_master = 1e3
     Rb_sensor = 1e3
-    IWU = 1.3e-3
+    IWU = 1.0e-3
     tWU = 20e-3
-    IRO = 1.3e-3
+    IRO = 4.6e-3
     tRO = 40e-3
-    IRX = 1.3e-3
-    bits_master = 200
-    bits_sensor = 200
+    IRX = 1.6e-3
+    bits_master = 300
+    bits_sensor = 100
     ID_sensor = 10e-3
-    Tcycle = 60
-    ISL = 400e-9
+    Tcycle = 10
+    ISL = 1E-6
     QmAh = 220
-    BER_target = 1e-3
+    BER_target = 3.8e-3
     Imax_m = 100e-3
     Imax_s = 100e-3
     Imin_m = 0e-3
