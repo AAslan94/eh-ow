@@ -13,7 +13,7 @@ plt.rcParams.update({
     "text.usetex": True,
     "font.family": "serif",
     "font.serif": ["Palatino"],
-    "font.size" : 22,
+    "font.size" : 26,
     "lines.linewidth" : 2,
 })
 
@@ -880,19 +880,26 @@ class sensor_net:
             'a':   '#8c564b'    # Brown
             }
 
-        plt.figure(figsize=(10, 8))
+        plt.figure(figsize=(12, 8))
         l = self.l
 
-        plt.plot(l, self.ST_m / np.max(self.ST_m), color=colors['vlc'], label='$S_\\mathrm{VLC}$')
-        plt.plot(l, self.ST_s / np.max(self.ST_s), linestyle='--', color=colors['ir'], label='$S_\\mathrm{IR}$')
-        plt.plot(l[self.R_s1>0], self.R_s1[self.R_s1>0] / np.max(self.R_s1), linestyle='--',  color=colors['pv'], label='$S_\\mathrm{PV}$')    
-        plt.plot(l, self.R_m / np.max(self.R_m), color=colors['pd'], label='$\\mathcal{S}_\\mathrm{PD}$')
-        plt.plot(l, self.SR_m / np.max(self.SR_m), color=colors['f'], label='$S_\\mathrm{F}$')
-        plt.plot(l, self.ST_a / np.max(self.ST_a), linestyle='--', color=colors['a'], label='$S_\\mathrm{A}$')
+        plt.plot(l, self.ST_m / np.max(self.ST_m), color=colors['vlc'], label='$S_\\mathrm{T}$ (VL)')
+        plt.plot(l, self.ST_s / np.max(self.ST_s), linestyle='--', color=colors['ir'], label='$S_\\mathrm{T}$ (IR)')
+        plt.plot(l[self.R_s1>0], self.R_s1[self.R_s1>0] / np.max(self.R_s1), linestyle='--',  color=colors['pv'], label='$\\mathcal{R}_\\mathrm{PV}$')    
+        mask_pd = self.R_m > 0
+        plt.plot(
+                l[mask_pd],
+                self.R_m[mask_pd] / np.max(self.R_m),
+                color=colors['pd'],
+                label='$\\mathcal{R}_\\mathrm{PD}$'
+                )
+
+        plt.plot(l, self.SR_m / np.max(self.SR_m), color=colors['f'], label='$S_\\mathrm{R}$')
+        plt.plot(l, self.ST_a / np.max(self.ST_a), linestyle='--', color=colors['a'], label='$S_\\mathrm{SUN}$')
 
         plt.legend(loc='upper right') 
         plt.xlabel("$\\lambda$ [m]")
-        plt.ylabel("Normalized Responsivity / Spectrum Power Distribution")
+        plt.ylabel("Normalized Responsivity / Power Distribution")
         plt.tight_layout()  
         plt.savefig("spectra.pdf", format='pdf')
         plt.show()

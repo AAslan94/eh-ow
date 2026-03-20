@@ -9,22 +9,14 @@ from defaults import constants
 from create_points import *
 import owutils as ut
 
-#scenario B
-f_b_opt = np.load('no_sun_to_use21.npz') #optimization results - optimized area / orientation
-f_b_def = np.load('nosun_noor_21.npz') # optimization results - optimized area / default orientation
-A_b_d = f_b_def['orientations'].flatten() #optimized area for default orientation
-nz = f_b_opt['orientations'][:,0:2] # optimized orientation - cartesian
-nR_b = ut.spher_to_cart_ar(1,nz[:,0],nz[:,1]).T  #optimized orientation - spherical
-A_b_opt = f_b_opt['orientations'][:,2] # optimized area for optimized orientation 
-
-#scenario A
-f_a_opt = np.load('SUN_TO_USE_21.npz') #optimization results - optimized area / orientation
-f_a_def = np.load('sun_noor_21.npz') # optimization results - optimized area / default orientation
-A_a_d = f_a_def['orientations'].flatten() #optimized area for default orientation
-nz = f_a_opt['orientations'][:,0:2] # optimized orientation - cartesian
-nR_a = ut.spher_to_cart_ar(1,nz[:,0],nz[:,1]).T  #optimized orientation - spherical
-A_a_opt = f_a_opt['orientations'][:,2] # optimized area for optimized orientation 
-
+def led_pow(light,mn,p):
+    is_index = np.where(np.all(light == mn, axis=1))
+    index = is_index[0][0] 
+    size = light.shape[0]
+    power = np.full((size,), p)
+    power[index] = power[index] * 0.707 
+    return power
+    
 
 def align_receiver_to_transmitter(r_rec, r_tra):
     """
@@ -56,13 +48,54 @@ def align_receiver_to_transmitter(r_rec, r_tra):
 
     return unit_vector
 
-arr = gen_points(1,9,1,9,3,5,5,False) #positions of lighting LEDs 
-arr_m = np.array([5,5,3])
+
+led_pos_A = gen_points(1,9,1,9,3,5,5,False) #positions of Lighting LEDs
+sn_pos_A = gen_points(0.4,9.6,0.4,9.6,0,10,10,False) #SNs positions
 diag = np.round(diagonal_points(0, 10, 0, 10, 0,21),2) #positions of sensors
-#u = np.round(align_receiver_to_transmitter(np.array([6,6,0]), arr_m), 2)
+m_pos_A = np.array([5,5,3]) #MN position
+
+sn_pos_B = gen_points(0,8,0,6,0,32,24,False)
+led_pos_B = np.array([[2,1,2.8], [2,5,2.8],[6,1,2.8], [6,5,2.8], [4,3,2.8]])
+m_pos_B = np.array([4,3,2.8])
+
+sn_pos_C = gen_points(0,8,0,1,0,24,6,False)
+led_pos_C = np.array([
+           [0.8, 0.5, 4.0],  
+           [2.4, 0.5, 4.0],  
+           [5.6, 0.5, 4.0],  
+           [7.2, 0.5, 4.0],
+           [4,0.5,4]
+           ])
+m_pos_C = np.array([4,0.5,4])
+
+start1 = np.array([0.2, 0.1, 1])
+end1   = np.array([7.8, 0.1, 1])
+line1 = np.linspace(start1, end1, 7)
+
+# Second line (z = 3)
+start2 = np.array([0.2, 0.1, 3])
+end2   = np.array([7.8, 0.1, 3])
+line2 = np.linspace(start2, end2, 7)
+
+# Combine into one array
+pos_opt_C  = np.vstack((line1, line2))
+
+
+start1 = np.array([0.2, 3, 0])
+end1   = np.array([7.8, 3, 0])
+line1 = np.linspace(start1, end1, 11)
+
+
+start2 = np.array([0.2, 1.5, 0])
+end2   = np.array([7.8, 1.5, 0])
+line2 = np.linspace(start2, end2, 11)
+
+# Combine into one array
+pos_opt_B  = np.vstack((line1, line2))
+
 
 designs = {
-  'A' :  {
+  'A2' :  {
     'room_L' : 10,
     'room_W' : 10,
     'room_H' : 3,
@@ -80,22 +113,23 @@ designs = {
     'FOV_sensor' : np.pi / 2.0,
     'amb_L1' : 2,
     'amb_L2' : 1,
-    'nR_sensor' : nR_a,
-    'nS_sensor' : align_receiver_to_transmitter(diag, arr_m),
+    'nR_sensor' : np.round(align_receiver_to_transmitter(diag, m_pos_A),2),
+    'nS_sensor' : align_receiver_to_transmitter(diag, m_pos_A),
     'nR_master' : -constants.ez,
     'nS_master' : -constants.ez,
     'no_bounces' : 4,
     'Rb_master' : 10e3,
     'Rb_sensor' : 10e3,  
     'PT_sensor' : 25e-3,
-    'PT_master' : 6,
+    'PT_master' : 4,
     'A_master' : 1e-4,
-    'A_sensor' : A_a_opt,
+    'A_sensor' : 10e-4,
     'pv': True,
-    'r_lights': arr,    
-    'PT_lights': 6
+    'r_lights': led_pos_A,  
+    'm_lights': 1,  
+    'PT_lights': led_pow(led_pos_A,m_pos_A,4)
     },
-  'B' :  {
+  'A1' :  {
     'room_L' : 10,
     'room_W' : 10,
     'room_H' : 3,
@@ -113,20 +147,125 @@ designs = {
     'FOV_sensor' : np.pi / 2.0,
     'amb_L1' : 0,
     'amb_L2' : 0,
-    'nR_sensor' : nR_b,
-    'nS_sensor' : np.round(align_receiver_to_transmitter(diag, arr_m),2),
+    'nR_sensor' : np.round(align_receiver_to_transmitter(diag, m_pos_A),2),
+    'nS_sensor' : align_receiver_to_transmitter(diag, m_pos_A),
     'nR_master' : -constants.ez,
     'nS_master' : -constants.ez,
     'no_bounces' : 4,
     'Rb_master' : 10e3,
     'Rb_sensor' : 10e3,  
     'PT_sensor' : 25e-3,
-    'PT_master' : 6,
+    'PT_master' : 4,
     'A_master' : 1e-4,
-    'A_sensor' : A_b_opt,
+    'A_sensor' : 10e-4,
     'pv': True,
-    'r_lights': arr,    
-    'PT_lights': 6
+    'r_lights': led_pos_A,    
+    'm_lights': 1, 
+    'PT_lights': led_pow(led_pos_A,m_pos_A,4)
+    },
+    
+    'B1' :  {
+    'room_L' : 8,
+    'room_W' : 6,
+    'room_H' : 2.8,
+    'refl_north' : 0.5,
+    'refl_south' : 0.5,
+    'refl_east' : 0.5,
+    'refl_west' : 0.5,
+    'refl_ceiling' : 0.8,
+    'refl_floor' : 0.2,
+    'm_sensor' : 1,
+    'r_sensor' : pos_opt_B,
+    'm_master' : 1,
+    'r_master' : m_pos_B,
+    'FOV_master' : np.pi / 2.0,
+    'FOV_sensor' : np.pi / 2.0,
+    'amb_L1' : 0,
+    'amb_L2' : 0,
+    'nR_sensor' : np.round(align_receiver_to_transmitter(pos_opt_B, m_pos_B),2),
+    'nS_sensor' : align_receiver_to_transmitter(pos_opt_B, m_pos_B),
+    'nR_master' : -constants.ez,
+    'nS_master' : -constants.ez,
+    'no_bounces' : 4,
+    'Rb_master' : 10e3,
+    'Rb_sensor' : 10e3,  
+    'PT_sensor' : 25e-3,
+    'PT_master' : 4,
+    'A_master' : 1e-4,
+    'A_sensor' : 10e-4,
+    'pv': True,
+    'r_lights': led_pos_B,    
+    'm_lights': 1, 
+    'PT_lights': led_pow(led_pos_B,m_pos_B,4)
+    },
+    
+    'B2' :  {
+    'room_L' : 8,
+    'room_W' : 6,
+    'room_H' : 2.8,
+    'refl_north' : 0.5,
+    'refl_south' : 0.5,
+    'refl_east' : 0.5,
+    'refl_west' : 0.5,
+    'refl_ceiling' : 0.8,
+    'refl_floor' : 0.2,
+    'm_sensor' : 1,
+    'r_sensor' : pos_opt_B,
+    'm_master' : 1,
+    'r_master' : m_pos_B,
+    'FOV_master' : np.pi / 2.0,
+    'FOV_sensor' : np.pi / 2.0,
+    'amb_L1' : 1,
+    'amb_L2' : 1,
+    'nR_sensor' : np.round(align_receiver_to_transmitter(pos_opt_B, m_pos_B),2),
+    'nS_sensor' : align_receiver_to_transmitter(pos_opt_B, m_pos_B),
+    'nR_master' : -constants.ez,
+    'nS_master' : -constants.ez,
+    'no_bounces' : 4,
+    'Rb_master' : 10e3,
+    'Rb_sensor' : 10e3,  
+    'PT_sensor' : 25e-3,
+    'PT_master' : 4,
+    'A_master' : 1e-4,
+    'A_sensor' : 10e-4,
+    'pv': True,
+    'r_lights': led_pos_B,    
+    'm_lights': 3, 
+    'PT_lights': led_pow(led_pos_B,m_pos_B,4)
+    },
+    
+    'C' :  {
+    'room_L' : 8,
+    'room_W' : 1,
+    'room_H' : 4,
+    'refl_north' : 0.35,
+    'refl_south' : 0.35,
+    'refl_east' : 0.0,
+    'refl_west' : 0.0,
+    'refl_ceiling' : 0.6,
+    'refl_floor' : 0.4,
+    'm_sensor' : 1,
+    'r_sensor' : pos_opt_C ,
+    'm_master' : 1,
+    'r_master' : m_pos_C,
+    'FOV_master' : np.pi / 2.0,
+    'FOV_sensor' : np.pi / 2.0,
+    'amb_L1' : 0,
+    'amb_L2' : 0,
+    'nR_sensor' : np.round(align_receiver_to_transmitter(pos_opt_C, m_pos_C),2),
+    'nS_sensor' : align_receiver_to_transmitter(pos_opt_C, m_pos_C),
+    'nR_master' : -constants.ez,
+    'nS_master' : -constants.ez,
+    'no_bounces' : 4,
+    'Rb_master' : 10e3,
+    'Rb_sensor' : 10e3,  
+    'PT_sensor' : 25e-3,
+    'PT_master' : 5,
+    'A_master' : 1e-4,
+    'A_sensor' : 10e-4,
+    'pv': True,
+    'r_lights': led_pos_C,    
+    'm_lights': 1, 
+    'PT_lights': led_pow(led_pos_C,m_pos_C,5)
     },
 }
-  

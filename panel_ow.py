@@ -221,16 +221,23 @@ class Panel:
         self.noise_psd_rsh(f)
         self.noise_psd_rl(f)
         self.noise_psd_r(f)
-        self.int_rc = np.trapz(self.n_rc, f, axis=1)
-        self.int_rs = np.trapz(self.n_rs, f, axis=1)
-        self.int_rsh = np.trapz(self.n_rsh, f, axis=1)
-        self.int_rl = np.trapz(self.n_rl, f, axis=1)
-        self.int_r = np.trapz(self.n_r, f, axis=1)
+        bw_mask = f[None, :] <= self.BW[:, None]
+        
+        # Multiply each PSD by the mask to truncate frequencies above self.BW
+        self.int_rc = np.trapz(self.n_rc * bw_mask, f, axis=1)
+        self.int_rs = np.trapz(self.n_rs * bw_mask, f, axis=1)
+        self.int_rsh = np.trapz(self.n_rsh * bw_mask, f, axis=1)
+        self.int_rl = np.trapz(self.n_rl * bw_mask, f, axis=1)
+        self.int_r = np.trapz(self.n_r * bw_mask, f, axis=1)
+        
         self.th_noise = self.int_rc + self.int_rs + self.int_rsh + self.int_rl + self.int_r
 
     def shot_noise(self,f):
         t = np.abs(self.hpv)**2
-        self.sh_noise = 2*self.q * self.Iph * np.trapz(t,f,axis = 1)
+        bw_mask = f[None, :] <= self.BW[:, None]
+        
+        # Apply the mask: frequencies > BW are zeroed out before integration
+        self.sh_noise = 2 * self.q * self.Iph * np.trapz(t * bw_mask, f, axis=1)
 
     def vp2p(self,f):
         self.vac = np.max(self.hpv,axis =1) * self.iac
