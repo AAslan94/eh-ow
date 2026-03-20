@@ -11,9 +11,9 @@ This repository provides the supplementary code associated with our upcoming pub
 The network architecture models two primary node types:
 
 * **Coordinator Nodes (CN):** * Utilize **Visible Light Communication (VLC)** for downlink data transmission.
-    * Equipped with a **Photodiode (PD)** for uplink data reception.
+  * Equipped with a **Photodiode (PD)** for uplink data reception.
 * **Sensor Nodes (SN):** * Transmit uplink data using **Infrared (IR)** signals.
-    * Equipped with dual-role **Photovoltaic (PV) panels** for both **data reception** and **energy harvesting (EH)**.
+  * Equipped with dual-role **Photovoltaic (PV) panels** for both **data reception** and **energy harvesting (EH)**.
 
 ---
 
@@ -41,9 +41,51 @@ The repository is organized by optimization approach and validation scripts. Bel
 
 ---
 
+## 🚀 Installation & Setup
+
+This framework requires **Python 3.8+**. We strongly recommend using a virtual environment to manage dependencies.
+
+### 1. Clone the Repository
+Open your terminal and clone the repository to your local machine:
+```bash
+git clone [https://github.com/AAslan94/eh-ow.git](https://github.com/AAslan94/eh-ow.git)
+cd eh-ow
+```
+
+### 2. Create and Activate a Virtual Environment
+```bash
+# On Linux/macOS
+python3 -m venv venv
+source venv/bin/activate
+
+# On Windows
+python -m venv venv
+venv\Scripts\activate
+```
+
+### 3. Install Required Dependencies
+The optimization and simulation framework relies on the following core scientific libraries. Install them via `pip`:
+```bash
+pip install numpy scipy matplotlib cma
+```
+*Note: The `cma` package is required to run the optimization. The framework also utilizes Python's built-in `multiprocessing` module for parallel evaluations.*
+
+### 4. Running the Code
+To explore the optimization results and visualization notebooks, install and launch Jupyter:
+```bash
+pip install jupyterlab
+jupyter lab
+```
+Alternatively, you can execute the validation or optimization scripts directly from the command line:
+```bash
+python run_opt_A1.py
+```
+
+---
+
 ## 📘 Publication Notice
 
-This code is part of the supplementary materials for a forthcoming research publication. Full citation details, comprehensive documentation, and installation instructions will be updated here following formal acceptance and publication.
+This code is part of the supplementary materials for a forthcoming research publication. Full citation details, comprehensive documentation, and advanced usage instructions will be updated here following formal acceptance and publication.
 
 ---
 
