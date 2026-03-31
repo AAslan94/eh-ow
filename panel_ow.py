@@ -41,7 +41,7 @@ class Panel:
             self.Iph *= self.G / Gstc
             
             self.Isc *= self.G / Gstc
-            self.Voc += self.Vt * np.log(G / Gstc)
+            self.Voc += self.Vt * self.n * np.log(G / Gstc)
             self.Rsh *= Gstc / self.G
             #self.Rs  *= Gstc / self.G
             self.I0 = (self.Isc - self.Voc / self.Rsh) / (np.exp(self.Voc / (self.n * self.Vt)) - 1)  
