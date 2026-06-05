@@ -48,7 +48,7 @@ This framework requires **Python 3.8+**. We strongly recommend using a virtual e
 ### 1. Clone the Repository
 Open your terminal and clone the repository to your local machine:
 ```bash
-git clone [https://github.com/AAslan94/eh-ow.git](https://github.com/AAslan94/eh-ow.git)
+git clone https://github.com/AAslan94/eh-ow.git
 cd eh-ow
 ```
 
