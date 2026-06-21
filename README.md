@@ -34,10 +34,12 @@ The repository is organized by optimization approach and validation scripts. Bel
 
 | File Pattern | Description |
 | :--- | :--- |
-| `mod_*` | **Robust Optimization:** Implements the minimax robust CMA-ES framework to account for spatial uncertainty and angular misalignments. |
+| `*_mod` | **Robust Optimization:** Implements the minimax robust CMA-ES framework to account for spatial uncertainty and angular misalignments. |
 | `cma_simple_*` | **Standard Optimization:** Implements the baseline CMA-ES optimization without robust perturbation constraints. |
 | `cma_def_orientation_*` | **Fixed Orientation:** Executes CMA-ES to minimize PV area while locking the PV orientation to a default alignment (e.g., facing the CN). |
 | `run_opt_*` | **Validation Scripts:** Runs the simulation using the final optimized parameters to validate energy neutrality and SNR performance. |
+| `sec4_*` | **Section 4 Scripts:** Runs the simulation using the unoptimized simulations with fixed Apv = 10 cm^2. Results from Section 4.|
+
 
 ---
 
